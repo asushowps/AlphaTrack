@@ -1,0 +1,6 @@
+{
+  "name": "AlphaTrack - Stock Portfolio & Drop Alert Tracker",
+  "description": "Real-time stock portfolio tracker with significant drop alerts, custom push notifications, 20-year historical performance charts for equities and major indices, and seamless mobile-desktop sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
