@@ -9,7 +9,7 @@ import type {
   MarketStatus 
 } from '../types';
 import { playAlertChime, dispatchSystemNotification, getNotificationPermissionStatus } from '../utils/notifications';
-import { fetchLiveQuotes, fetchMarketHours } from '../services/marketData';
+import { fetchLiveQuotes, fetchMarketHours, getSimulatedQuoteClient } from '../services/marketData';
 
 interface PortfolioContextType {
   holdings: Holding[];
@@ -527,12 +527,59 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return notifications.filter(n => !n.read).length;
   }, [notifications]);
 
-  // Handlers
   const addHolding = (newHolding: Omit<Holding, 'id'>) => {
-    const id = `h-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const ticker = newHolding.ticker.toUpperCase().trim();
-    setHoldings(prev => [...prev, { ...newHolding, id, ticker }]);
+
+    // 1. Immediately guarantee quote availability so metrics calculate right away
+    const immediateQuote = getSimulatedQuoteClient(ticker);
+    setQuotes(prev => ({
+      ...prev,
+      [ticker]: prev[ticker] || immediateQuote
+    }));
+
+    // 2. Either combine with existing position or append new holding
+    setHoldings(prev => {
+      const existingIdx = prev.findIndex(h => h.ticker.toUpperCase() === ticker);
+      if (existingIdx >= 0) {
+        const existing = prev[existingIdx];
+        const combinedShares = Number((existing.shares + newHolding.shares).toFixed(4));
+        const totalCost = (existing.shares * existing.avgBuyPrice) + (newHolding.shares * newHolding.avgBuyPrice);
+        const combinedAvgPrice = combinedShares > 0 ? Number((totalCost / combinedShares).toFixed(2)) : newHolding.avgBuyPrice;
+        
+        const updated = [...prev];
+        updated[existingIdx] = {
+          ...existing,
+          shares: combinedShares,
+          avgBuyPrice: combinedAvgPrice,
+          buyDate: newHolding.buyDate || existing.buyDate,
+          notes: newHolding.notes ? `${existing.notes ? existing.notes + ' · ' : ''}${newHolding.notes}` : existing.notes
+        };
+        return updated;
+      }
+
+      const id = `h-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      return [...prev, { ...newHolding, id, ticker }];
+    });
+
+    // 3. Set active selected ticker so charts focus on it
     setSelectedTicker(ticker);
+
+    // 4. Create an in-app audit notification
+    const newNotif: AlertNotification = {
+      id: `notif-add-${Date.now()}`,
+      ruleId: 'manual-add',
+      ticker,
+      title: `Position Added: ${ticker}`,
+      message: `Added ${newHolding.shares} shares of ${ticker} at $${newHolding.avgBuyPrice.toFixed(2)}/share.`,
+      severity: 'info',
+      percentChange: 0,
+      price: newHolding.avgBuyPrice,
+      timestamp: Date.now(),
+      read: false
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+
+    // 5. Trigger quotes refresh
     fetchQuotes();
   };
 
