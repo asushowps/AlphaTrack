@@ -47,8 +47,8 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Zone 1: Brand Wordmark (Single text element, no subtitle clutter) */}
       <div className="flex items-center gap-3 shrink-0">
         <a 
-          href="#dashboard" 
-          onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); }}
+          href="#compare" 
+          onClick={(e) => { e.preventDefault(); setActiveView('compare'); }}
           className="text-lg md:text-xl font-extrabold tracking-tight text-white flex items-center gap-2 whitespace-nowrap"
         >
           <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -72,6 +72,12 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Zone 2: Navigation Links (Clean single-line prose, no pills) */}
       <nav className="hidden md:flex items-center gap-6 text-xs md:text-sm font-medium text-slate-400">
         <button
+          onClick={() => setActiveView('compare')}
+          className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${activeView === 'compare' ? 'text-white font-semibold' : ''}`}
+        >
+          20Y Compare
+        </button>
+        <button
           onClick={() => setActiveView('dashboard')}
           className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${activeView === 'dashboard' ? 'text-white font-semibold' : ''}`}
         >
@@ -82,12 +88,6 @@ export const Header: React.FC<HeaderProps> = ({
           className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${activeView === 'daily_pnl' ? 'text-white font-semibold' : ''}`}
         >
           Daily P&L
-        </button>
-        <button
-          onClick={() => setActiveView('compare')}
-          className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${activeView === 'compare' ? 'text-white font-semibold' : ''}`}
-        >
-          20Y Compare
         </button>
         <button
           onClick={() => setActiveView('charts')}

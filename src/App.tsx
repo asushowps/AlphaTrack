@@ -34,7 +34,7 @@ function DashboardContent() {
     quotesLastUpdated 
   } = usePortfolio();
 
-  const [activeView, setActiveView] = useState<'dashboard' | 'daily_pnl' | 'compare' | 'charts' | 'holdings'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'daily_pnl' | 'compare' | 'charts' | 'holdings'>('compare');
   
   // Modals state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
