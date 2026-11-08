@@ -13,6 +13,7 @@ import { SyncModal } from './components/SyncModal';
 import { SignificantDropToast } from './components/SignificantDropToast';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Portfolio20YComparison } from './components/Portfolio20YComparison';
+import { FinancialDisclaimer } from './components/FinancialDisclaimer';
 import type { Holding } from './types';
 import { 
   BarChart3, 
@@ -279,6 +280,9 @@ function DashboardContent() {
             <DailyPnLSummary onOpenAlertModalForTicker={handleOpenAlertForTicker} />
           </div>
         )}
+
+        {/* Financial Disclaimer at Bottom of Page */}
+        <FinancialDisclaimer />
       </main>
 
       {/* Footer info */}
