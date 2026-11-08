@@ -11,7 +11,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
-import type { SearchItem } from '../../server';
+import { searchSecurities as querySecuritiesService, type SearchItem } from '../services/marketData';
 
 interface StockSearchModalProps {
   isOpen: boolean;
@@ -46,11 +46,8 @@ export const StockSearchModal: React.FC<StockSearchModalProps> = ({
   const searchSecurities = async (q: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      if (res.ok) {
-        const json = await res.json();
-        setResults(json.results || []);
-      }
+      const items = await querySecuritiesService(q);
+      setResults(items);
     } catch {
       // ignore
     } finally {

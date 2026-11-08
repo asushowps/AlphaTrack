@@ -19,6 +19,7 @@ import {
   Scale
 } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { fetchPortfolioComparison } from '../services/marketData';
 
 interface TrajectoryPoint {
   date: string;
@@ -116,15 +117,13 @@ export const Portfolio20YComparison: React.FC<Portfolio20YComparisonProps> = ({
     let isCancelled = false;
     setLoading(true);
 
-    const tickersList = holdings.map(h => h.ticker).join(',');
-    const url = `/api/compare-portfolio?tickers=${encodeURIComponent(tickersList || 'NVDA,AAPL,MSFT,VOO,AMZN,TSLA')}&amount=${numericAmount}&years=${yearsInput}`;
+    const tickersList = holdings.map(h => h.ticker);
+    const effectiveTickers = tickersList.length > 0 ? tickersList : ['NVDA', 'AAPL', 'MSFT', 'VOO', 'AMZN', 'TSLA'];
 
     async function loadComparison() {
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to load comparison data');
-        const json = await res.json();
-        if (!isCancelled) {
+        const json = await fetchPortfolioComparison(effectiveTickers, numericAmount, yearsInput);
+        if (!isCancelled && json) {
           setItems(json.items || []);
           setBenchmark(json.benchmark || null);
         }

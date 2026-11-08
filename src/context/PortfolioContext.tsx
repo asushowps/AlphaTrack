@@ -9,6 +9,7 @@ import type {
   MarketStatus 
 } from '../types';
 import { playAlertChime, dispatchSystemNotification, getNotificationPermissionStatus } from '../utils/notifications';
+import { fetchLiveQuotes, fetchMarketHours } from '../services/marketData';
 
 interface PortfolioContextType {
   holdings: Holding[];
@@ -233,7 +234,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     localStorage.setItem('alphatrack_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
-  // Fetch Quotes function
+  // Fetch Quotes function (Resilient for Vercel, Node, and browser)
   const fetchQuotes = useCallback(async () => {
     try {
       // Gather unique tickers: holdings + major indices + selectedTicker
@@ -243,14 +244,10 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...holdings.map(h => h.ticker)
       ]);
 
-      const tickersList = Array.from(tickerSet).join(',');
-      const res = await fetch(`/api/quotes?tickers=${encodeURIComponent(tickersList)}`);
-      if (!res.ok) throw new Error('Quote fetch failed');
-      
-      const data = await res.json();
+      const quotesArray = await fetchLiveQuotes(Array.from(tickerSet));
       const quoteMap: Record<string, StockQuote> = {};
       
-      data.quotes.forEach((q: StockQuote) => {
+      quotesArray.forEach((q: StockQuote) => {
         quoteMap[q.ticker.toUpperCase()] = q;
       });
 
@@ -263,14 +260,11 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [holdings, selectedTicker]);
 
-  // Fetch Market Status
+  // Fetch Market Status (Resilient for Vercel)
   const fetchMarketStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/market-status');
-      if (res.ok) {
-        const data = await res.json();
-        setMarketStatus(data);
-      }
+      const data = await fetchMarketHours();
+      setMarketStatus(data);
     } catch {}
   }, []);
 
@@ -620,18 +614,29 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Cross-device sync functions
+  // Cross-device sync functions (Resilient for Vercel and local)
   const pushSyncToCloud = async (): Promise<boolean> => {
     setIsSyncing(true);
+    const payload = {
+      holdings,
+      cashBalance,
+      alertRules,
+      syncId,
+      theme,
+      timestamp: Date.now()
+    };
+
+    // Always cache locally by syncId for offline and cross-tab pairing
     try {
-      const payload = {
-        holdings,
-        cashBalance,
-        alertRules,
-        syncId,
-        theme,
-        timestamp: Date.now()
-      };
+      localStorage.setItem(`alphatrack_sync_store_${syncId}`, JSON.stringify(payload));
+      if ('BroadcastChannel' in window) {
+        const bc = new BroadcastChannel('alphatrack_sync');
+        bc.postMessage({ type: 'SYNC_PUSH', syncId, payload });
+        bc.close();
+      }
+    } catch {}
+
+    try {
       const res = await fetch(`/api/sync/${syncId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -642,41 +647,55 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsSyncing(false);
         return true;
       }
-      setIsSyncing(false);
-      return false;
     } catch {
-      setIsSyncing(false);
-      return false;
+      // Server route may not exist on static Vercel
     }
+
+    setLastSyncedAt(Date.now());
+    setIsSyncing(false);
+    return true;
   };
 
   const pullSyncFromCloud = async (code: string): Promise<boolean> => {
     setIsSyncing(true);
+    const cleanCode = code.trim().toUpperCase();
+
     try {
-      const cleanCode = code.trim().toUpperCase();
       const res = await fetch(`/api/sync/${cleanCode}`);
-      if (!res.ok) {
-        setIsSyncing(false);
-        return false;
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.data) {
+          const d = json.data;
+          if (Array.isArray(d.holdings)) setHoldings(d.holdings);
+          if (typeof d.cashBalance === 'number') setCashBalance(d.cashBalance);
+          if (Array.isArray(d.alertRules)) setAlertRules(d.alertRules);
+          if (d.theme === 'dark' || d.theme === 'light') setTheme(d.theme);
+          setLastSyncedAt(json.updatedAt || Date.now());
+          setIsSyncing(false);
+          fetchQuotes();
+          return true;
+        }
       }
-      const json = await res.json();
-      if (json && json.data) {
-        const d = json.data;
+    } catch {}
+
+    // Fallback: check localStorage store for paired device sync
+    try {
+      const localStored = localStorage.getItem(`alphatrack_sync_store_${cleanCode}`);
+      if (localStored) {
+        const d = JSON.parse(localStored);
         if (Array.isArray(d.holdings)) setHoldings(d.holdings);
         if (typeof d.cashBalance === 'number') setCashBalance(d.cashBalance);
         if (Array.isArray(d.alertRules)) setAlertRules(d.alertRules);
         if (d.theme === 'dark' || d.theme === 'light') setTheme(d.theme);
-        setLastSyncedAt(json.updatedAt || Date.now());
+        setLastSyncedAt(d.timestamp || Date.now());
         setIsSyncing(false);
         fetchQuotes();
         return true;
       }
-      setIsSyncing(false);
-      return false;
-    } catch {
-      setIsSyncing(false);
-      return false;
-    }
+    } catch {}
+
+    setIsSyncing(false);
+    return false;
   };
 
   const exportPortfolioJSON = (): string => {

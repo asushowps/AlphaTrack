@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { HistoricalPoint, TimeRange } from '../types';
 import { usePortfolio } from '../context/PortfolioContext';
+import { fetchHistoricalData } from '../services/marketData';
 
 interface InteractiveChartProps {
   ticker?: string;
@@ -43,18 +44,16 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  // Fetch primary ticker history
+  // Fetch primary ticker history (Resilient for Vercel, Node, and browser)
   useEffect(() => {
     let isCancelled = false;
     setLoading(true);
 
     async function loadHistory() {
       try {
-        const res = await fetch(`/api/history/${encodeURIComponent(activeTicker)}?range=${timeRange}`);
-        if (!res.ok) throw new Error('History fetch failed');
-        const json = await res.json();
-        if (!isCancelled && Array.isArray(json.points)) {
-          setData(json.points);
+        const points = await fetchHistoricalData(activeTicker, timeRange);
+        if (!isCancelled && Array.isArray(points)) {
+          setData(points);
         }
       } catch (e) {
         console.error('Error fetching historical data:', e);
@@ -77,11 +76,9 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     async function loadBenchmark() {
       try {
-        const res = await fetch(`/api/history/${encodeURIComponent(benchmarkTicker)}?range=${timeRange}`);
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!isCancelled && Array.isArray(json.points)) {
-          setBenchmarkData(json.points);
+        const points = await fetchHistoricalData(benchmarkTicker, timeRange);
+        if (!isCancelled && Array.isArray(points)) {
+          setBenchmarkData(points);
         }
       } catch {}
     }
